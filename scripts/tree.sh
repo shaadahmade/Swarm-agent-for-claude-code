@@ -21,9 +21,16 @@ def walk(node_dir, label, indent, is_root=False):
         except Exception:
             status = "corrupt-status"
     # A node is "real" only if spawn.sh actually launched an agent for it.
+    # The root is exempt: it is normally the interactive master session, which
+    # is never spawned and so never has an .agent.log of its own.
     spawned = os.path.exists(os.path.join(node_dir, ".agent.log"))
-    (real if spawned else phantom).append(label)
-    tag = "" if spawned else "  <-- PHANTOM: no agent ever ran here"
+    if is_root:
+        tag = "" if spawned else "  (interactive master)"
+        if spawned:
+            real.append(label)
+    else:
+        (real if spawned else phantom).append(label)
+        tag = "" if spawned else "  <-- PHANTOM: no agent ever ran here"
     mark = {"success": "[ok]", "partial": "[~ ]", "failed": "[XX]"}.get(status, "[..]")
     print(f"{indent}{mark} {label}  {('- ' + summary) if summary else ''}{tag}")
     cdir = os.path.join(node_dir, "children")

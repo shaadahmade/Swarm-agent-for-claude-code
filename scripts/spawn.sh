@@ -71,12 +71,22 @@ if [ -n "${LEAF_MODEL}" ] && [ "${DEPTH}" -ge "${MAX_DEPTH}" ]; then
   MODEL="${LEAF_MODEL}"
 fi
 
+# ---- absolute paths: an agent that cd's must still find its own node ----
+NODE_ABS="$(cd "${NODE_DIR}" && pwd)"
+RUN_ABS="$(cd "${RUN_DIR}" && pwd)"
+
 # ---- build the prompt ----
 PROMPT_FILE="${NODE_DIR}/.prompt.txt"
 {
   echo "You are one agent node inside a recursive agent swarm."
-  echo "Your node directory (relative to CWD): ${NODE_DIR}"
-  echo "Run directory: ${RUN_DIR}   |   Your depth: ${DEPTH}   |   Max depth: ${MAX_DEPTH}"
+  echo "Your node directory (ABSOLUTE): ${NODE_ABS}"
+  echo "Run directory (ABSOLUTE): ${RUN_ABS}"
+  echo "Your depth: ${DEPTH}   |   Max depth: ${MAX_DEPTH}"
+  echo ""
+  echo "Always write result.md and status.json to the ABSOLUTE node path above."
+  echo "Never write them to a path relative to your current directory: if you cd"
+  echo "anywhere during your work, a relative path silently lands in the wrong"
+  echo "tree, your parent sees no results, and you are recorded as dead."
   echo "Spawn script for children: ${SCRIPT_DIR}/spawn.sh"
   echo ""
   echo "IMPORTANT -- how to run the spawn script: it is a bash script and the path"
