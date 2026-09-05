@@ -1,0 +1,8 @@
+# Swarm run artifacts. Every run writes agent logs, prompts, and results here.
+swarm/
+
+# Editor and OS noise
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
