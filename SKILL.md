@@ -50,11 +50,16 @@ Hard rules that keep the civilization from collapsing:
 
 ## Master Agent workflow (you, step by step)
 
-1. **Init the run:**
+1. **Size the swarm, then init the run.** You choose the configuration yourself
+   from the shape of the goal. Do not accept the defaults blindly and do not ask
+   the user for numbers unless they raised the subject. Use the rubric below,
+   then pass your choice as a JSON object:
    ```bash
-   bash <skill-dir>/scripts/init_swarm.sh "<short-run-name>"
+   bash <skill-dir>/scripts/init_swarm.sh "<short-run-name>" '{"max_depth":2,"max_children":3,"max_agents":10,"max_parallel":3,"leaf_model":"claude-haiku-4-5-20251001","rationale":"why you chose this"}'
    ```
-   This creates `swarm/<run-id>/`, `config.json` (edit limits if the user asked for them), and `nodes/root/`. Write the user's goal into `nodes/root/task.md`.
+   This creates `swarm/<run-id>/`, writes `config.json`, and creates `nodes/root/`.
+   Write the user's goal into `nodes/root/task.md`. State your sizing choice and
+   its one-line reason to the user before spawning anything.
 
 2. **Plan the decomposition.** Write `nodes/root/plan.md`: list 2–4 subtasks, each with a clear deliverable and success criterion. Tell the user the plan briefly before spawning.
 
@@ -72,6 +77,43 @@ Hard rules that keep the civilization from collapsing:
    - A child produced files (code, docs): children write real files into their own node dir or a path you specify in their task.md — collect/merge them.
 
 5. **Report.** Show the user the final result, plus a one-line civilization census: how many agents ran, tree shape, any casualties (failed nodes). `bash <skill-dir>/scripts/tree.sh <run-dir>` prints the tree with statuses.
+
+## Sizing the swarm (you decide this, every run)
+
+Count the shape of the goal first: how many separable parts it has, and whether
+those parts themselves split. Then pick the smallest tree that covers it.
+
+| Goal shape | max_depth | max_children | max_agents | max_parallel |
+|---|---|---|---|---|
+| 2 or 3 parts, none of which subdivide | 1 | 3 | 4 | 3 |
+| A few areas, each with its own sub-parts | 2 | 3 | 10 | 3 |
+| Large build with several layers of structure | 3 | 4 | 20 | 4 |
+| Many similar items processed the same way (wide and shallow) | 1 | 6 | 13 | 4 |
+
+**Budget the tree before you set `max_agents`.** A balanced tree of branching
+factor b and depth d holds `1 + b + b^2 + ... + b^d` agents. Branching 2 at depth
+2 is 7 agents; branching 3 at depth 2 is 13; branching 4 at depth 3 is 85. Set
+`max_agents` to at least the tree you actually intend, with a little slack for a
+retry. Set it too low and spawns are refused mid-run, forcing parents to absorb
+work and flattening the swarm into something slower than a single agent.
+
+**Choosing models.** `model` applies to every node; `leaf_model` overrides it at
+max depth only. Leaf nodes never decompose, so mechanical leaf work (collecting
+facts, formatting, applying one edit) runs well on a small model while the
+planning levels above keep a stronger one. If the leaves need real judgment,
+such as writing non-trivial code, leave `leaf_model` empty so they inherit
+`model`.
+
+**Bias small.** A swarm has real overhead: every agent is a fresh process with
+no memory of the conversation, and each level of depth adds a full round of
+spawn, wait, and merge. When two sizings look reasonable, take the smaller one.
+If the goal turns out not to have 2 or more genuinely separable parts, do not
+run a swarm at all: just do the task directly and say so.
+
+**Hard ceilings.** `init_swarm.sh` clamps every value to a safety ceiling
+(depth 5, children 6, agents 40, parallel 8) and reports on stderr when it
+clamps. Treat a clamp message as a signal that your plan was too big, and
+reconsider the decomposition rather than working around the limit.
 
 ## What children do (encoded in their task.md automatically)
 

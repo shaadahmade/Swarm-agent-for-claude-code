@@ -19,6 +19,7 @@ cfg() { python3 -c "import json,sys;print(json.load(open('${RUN_DIR}/config.json
 MAX_AGENTS=$(cfg max_agents 15)
 MAX_PARALLEL=$(cfg max_parallel 3)
 MODEL=$(cfg model "")
+LEAF_MODEL=$(cfg leaf_model "")
 MAX_DEPTH=$(cfg max_depth 3)
 # Tools each spawned agent may use without a permission prompt. Headless agents
 # cannot answer prompts, so anything omitted here silently blocks the agent --
@@ -62,6 +63,13 @@ trap release_slot EXIT
 
 # ---- compute this node's depth from its path (root=0) ----
 DEPTH=$(echo "${NODE_REL}" | grep -o "children/" | wc -l | tr -d ' ')
+
+# ---- leaf nodes may run a cheaper model ----
+# Nodes at max depth must EXECUTE rather than decompose, so they do no planning
+# and can often run on a smaller model. Falls back to MODEL when unset.
+if [ -n "${LEAF_MODEL}" ] && [ "${DEPTH}" -ge "${MAX_DEPTH}" ]; then
+  MODEL="${LEAF_MODEL}"
+fi
 
 # ---- build the prompt ----
 PROMPT_FILE="${NODE_DIR}/.prompt.txt"

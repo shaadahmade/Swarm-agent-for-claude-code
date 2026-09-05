@@ -37,6 +37,14 @@ bp = os.path.join(run, "budget.count")
 count = open(bp).read().strip() if os.path.exists(bp) else "?"
 cfg = json.load(open(os.path.join(run, "config.json"), encoding="utf-8"))
 print(f"Swarm {run} — agents spawned: {count}/{cfg['max_agents']}")
+model = cfg.get("model") or "(default)"
+leaf = cfg.get("leaf_model")
+print(f"Config: depth<={cfg['max_depth']} children<={cfg['max_children']} "
+      f"parallel<={cfg['max_parallel']} model={model}"
+      + (f" leaf_model={leaf}" if leaf else ""))
+if cfg.get("rationale"):
+    print(f"Sizing: {cfg['rationale']}")
+print()
 walk(root, "root (master)", "", is_root=True)
 
 # ---- census audit ----

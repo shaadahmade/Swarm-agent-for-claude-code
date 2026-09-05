@@ -63,8 +63,8 @@ Invoke the skill with your goal:
 To drive the scripts by hand:
 
 ```bash
-# create a run
-RUN=$(bash scripts/init_swarm.sh myrun)
+# create a run, optionally sizing it yourself
+RUN=$(bash scripts/init_swarm.sh myrun '{"max_depth":2,"max_agents":13}')
 
 # write the root task, then start the swarm
 echo "your goal here" > "$RUN/nodes/root/task.md"
@@ -108,7 +108,46 @@ child of the second child of the root.
 | `max_agents` | 15 | Total agents allowed for the whole run. |
 | `max_parallel` | 3 | Maximum agents running at once, across the entire tree. |
 | `model` | "" | Model for spawned agents. Empty means the default. |
+| `leaf_model` | "" | Overrides `model` at max depth only. Empty means leaves inherit `model`. |
 | `allowed_tools` | `Bash Read Write Edit Glob Grep` | Tools each agent may use without a permission prompt. |
+| `rationale` | "" | Why the swarm was sized this way. Recorded and shown by `tree.sh`. |
+
+### The swarm sizes itself
+
+You do not have to set any of this. The master agent reads the goal, works out
+how many separable parts it has and whether those parts subdivide, and passes
+its own configuration to `init_swarm.sh` as a JSON object:
+
+```bash
+bash scripts/init_swarm.sh research '{"max_depth":2,"max_agents":13,"rationale":"three areas, each splitting into sub-topics"}'
+```
+
+The reasoning is stored in `rationale` and printed by `tree.sh`, so the sizing
+decision is visible rather than buried. Anything you set by hand is respected,
+and any key you leave out falls back to the default in the table above.
+
+Sizing follows the tree it intends to build. A balanced tree of branching factor
+b and depth d holds `1 + b + b^2 + ... + b^d` agents, so branching 2 at depth 2
+needs 7 and branching 3 at depth 2 needs 13. A budget set below the intended
+tree is worse than a small one, because spawns get refused partway through and
+parents have to absorb the leftover work.
+
+### Ceilings on autonomous sizing
+
+Because the agent chooses its own limits, `init_swarm.sh` clamps every value it
+is given and reports on stderr when it does:
+
+| Key | Floor | Ceiling |
+|---|---|---|
+| `max_depth` | 0 | 5 |
+| `max_children` | 2 | 6 |
+| `max_agents` | 1 | 40 |
+| `max_parallel` | 1 | 8 |
+
+`max_parallel` is additionally capped at `max_agents`. Invalid JSON and unknown
+keys are rejected rather than ignored, so a typo like `max_agent` fails loudly
+instead of silently leaving the default in place. To allow larger swarms, raise
+the ceilings in `scripts/init_swarm.sh` deliberately.
 
 ### A note on allowed_tools
 
@@ -137,6 +176,9 @@ is broad by nature and this is not a sandbox.
 
 ```
 Swarm swarm/20260906-013536-deeptest - agents spawned: 7/7
+Config: depth<=2 children<=2 parallel<=3 model=(default) leaf_model=claude-haiku-4-5-20251001
+Sizing: four planets in two natural pairs, one agent per planet at the leaves
+
 [ok] root (master)  - Aggregated all 4 planets from both children
     [ok] 1  - Inner planets section complete
         [ok] 1  - Mercury facts
