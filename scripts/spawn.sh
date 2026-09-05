@@ -15,7 +15,10 @@ if [ ! -f "${NODE_DIR}/task.md" ]; then
   exit 2
 fi
 
-cfg() { python3 -c "import json,sys;print(json.load(open('${RUN_DIR}/config.json')).get(sys.argv[1],sys.argv[2]))" "$1" "$2"; }
+# Read one key from config.json. Python runs with the run directory as its CWD
+# and opens a bare filename, because RUN_DIR may be an MSYS path such as
+# /c/Users/... which bash can cd into but a native Windows python cannot open.
+cfg() { ( cd "${RUN_DIR}" && python3 -c "import json,sys;print(json.load(open('config.json')).get(sys.argv[1],sys.argv[2]))" "$1" "$2" 2>/dev/null ); }
 MAX_AGENTS=$(cfg max_agents 15)
 MAX_PARALLEL=$(cfg max_parallel 3)
 MODEL=$(cfg model "")
@@ -25,6 +28,18 @@ MAX_DEPTH=$(cfg max_depth 3)
 # cannot answer prompts, so anything omitted here silently blocks the agent --
 # including the Bash call it needs to spawn its own children.
 ALLOWED_TOOLS=$(cfg allowed_tools "Bash Read Write Edit Glob Grep")
+
+# A config that cannot be read yields empty numbers, and an empty max_parallel
+# makes the slot loop below spin forever. Fail loudly instead of hanging.
+for _v in MAX_AGENTS MAX_PARALLEL MAX_DEPTH; do
+  eval "_val=\${${_v}}"
+  case "${_val}" in
+    ''|*[!0-9]*)
+      echo "spawn.sh: ERROR: ${_v} is '${_val}', expected a number." >&2
+      echo "spawn.sh: could not read ${RUN_DIR}/config.json" >&2
+      exit 5;;
+  esac
+done
 
 # ---- global budget check (atomic via mkdir lock) ----
 LOCK="${RUN_DIR}/.budget.lock"
@@ -58,7 +73,12 @@ while [ -z "${SLOT}" ]; do
   done
   [ -z "${SLOT}" ] && sleep 1
 done
-release_slot() { rmdir "${SLOT}" 2>/dev/null || true; }
+SLOT_RELEASED=0
+release_slot() {
+  [ "${SLOT_RELEASED}" -eq 1 ] && return 0
+  rmdir "${SLOT}" 2>/dev/null || true
+  SLOT_RELEASED=1
+}
 trap release_slot EXIT
 
 # ---- compute this node's depth from its path (root=0) ----
@@ -115,7 +135,22 @@ EXTRA_ARGS=()
 claude -p "$(cat "${PROMPT_FILE}")" \
   --permission-mode acceptEdits \
   "${EXTRA_ARGS[@]}" \
-  > "${NODE_DIR}/.agent.log" 2>&1
+  > "${NODE_DIR}/.agent.log" 2>&1 &
+AGENT_PID=$!
+
+# Once this node has written task files for its own children it is no longer
+# working, it is blocked waiting for them. A blocked parent that keeps holding
+# a slot deadlocks the swarm: every slot ends up held by a parent waiting on
+# children who can never get a slot of their own. So release the slot as soon
+# as this node becomes a parent. The cap then limits agents doing actual work
+# rather than agents merely existing.
+while kill -0 "${AGENT_PID}" 2>/dev/null; do
+  if [ "${SLOT_RELEASED}" -eq 0 ] && compgen -G "${NODE_DIR}/children/*/task.md" >/dev/null 2>&1; then
+    release_slot
+  fi
+  sleep 1
+done
+wait "${AGENT_PID}"
 RC=$?
 
 # ---- guarantee a status.json for the parent's backtrace ----

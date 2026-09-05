@@ -165,7 +165,11 @@ is broad by nature and this is not a sandbox.
   counter is guarded by an atomic `mkdir` lock, so concurrent spawns cannot
   overshoot the limit.
 - **Parallelism gate.** A slot directory caps how many agents run at once across
-  the whole tree, which keeps the run within API rate limits.
+  the whole tree, which keeps the run within API rate limits. The cap counts
+  agents doing work, not agents merely existing: once a node has written task
+  files for its own children it is blocked waiting on them, so it gives up its
+  slot. Without that release the swarm deadlocks, because every slot ends up
+  held by a parent waiting on children who can never get a slot of their own.
 - **Parent-side guarantees.** If an agent crashes or exits without writing its
   files, `spawn.sh` backfills a failed `status.json` so the parent is never left
   waiting on a node that will never report.
