@@ -10,3 +10,7 @@ Thumbs.db
 # npm
 node_modules/
 *.tgz
+
+# python
+__pycache__/
+*.pyc
