@@ -6,3 +6,4 @@
 *.json text eol=lf
 LICENSE text eol=lf
 .gitignore text eol=lf
+*.py text eol=lf

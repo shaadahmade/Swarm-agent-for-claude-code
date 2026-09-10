@@ -217,6 +217,30 @@ instead of spawning it, that node is reported as a phantom and its results are
 flagged as unverified. This matters because a collapsed swarm otherwise looks
 identical to a healthy one.
 
+## Visualising a run
+
+`tree.sh` shows structure. `graph.sh` shows structure and timing together, as a
+self-contained HTML page you can open in a browser:
+
+```bash
+bash skills/agent-swarm/scripts/graph.sh <run-dir>          # writes <run-dir>/graph.html
+bash skills/agent-swarm/scripts/graph.sh <run-dir> out.html # or somewhere else
+```
+
+The page carries the node-link tree with each node's status, a timeline of when
+every agent actually ran, and the same census audit `tree.sh` performs. It reads
+only the run directory and needs no network, so it works on a finished run or a
+run still in progress.
+
+The timeline is the part worth reading. Agent lifetimes come from file
+timestamps, so the chart shows which agents overlapped, which ones queued on the
+parallelism gate waiting for a free slot, how long each parent spent planning
+before spawning, and how long it spent merging afterwards.
+
+Peak processes alive can legitimately exceed `max_parallel`. A parent blocked on
+its children releases its slot, so the cap counts agents doing work, not agents
+merely existing. The page says so where it reports the peak.
+
 ## Failure handling
 
 - A failed or partial child is retried once with a corrected `task.md`. If it
@@ -234,6 +258,8 @@ identical to a healthy one.
 | `skills/agent-swarm/scripts/init_swarm.sh` | Creates a run directory, config, and budget counter. |
 | `skills/agent-swarm/scripts/spawn.sh` | Launches one agent. Enforces budget and parallelism. |
 | `skills/agent-swarm/scripts/tree.sh` | Prints the tree with statuses and the census audit. |
+| `skills/agent-swarm/scripts/graph.sh` | Renders a run as a self-contained HTML tree and timeline. |
+| `skills/agent-swarm/scripts/graph.py` | The page generator behind `graph.sh`. |
 | `skills/agent-swarm/references/node-protocol.md` | The rules handed to every agent. |
 | `skills/agent-swarm/references/child-task-template.md` | Template for writing a child's task. |
 | `skills/agent-swarm/references/architecture.md` | Design rationale and debugging notes. |

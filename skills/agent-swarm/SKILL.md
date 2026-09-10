@@ -76,7 +76,11 @@ Hard rules that keep the civilization from collapsing:
    - A child **failed or is partial** → read its `result.md` for the failure reason. Retry it **once** with a corrected `task.md` (mention what went wrong). If it fails again, work around it: do that piece yourself or report the gap honestly in the final result.
    - A child produced files (code, docs): children write real files into their own node dir or a path you specify in their task.md — collect/merge them.
 
-5. **Report.** Show the user the final result, plus a one-line civilization census: how many agents ran, tree shape, any casualties (failed nodes). `bash <skill-dir>/scripts/tree.sh <run-dir>` prints the tree with statuses.
+5. **Report.** Show the user the final result, plus a one-line civilization census: how many agents ran, tree shape, any casualties (failed nodes). `bash <skill-dir>/scripts/tree.sh <run-dir>` prints the tree with statuses. For a
+visual report, `bash <skill-dir>/scripts/graph.sh <run-dir>` writes a
+self-contained `graph.html` with the tree, a timeline of when each agent ran, and
+the census audit. Offer it to the user after a run of more than a couple of
+agents, and give them the file path.
 
 ## Sizing the swarm (you decide this, every run)
 
