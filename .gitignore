@@ -6,3 +6,7 @@ swarm/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# npm
+node_modules/
+*.tgz

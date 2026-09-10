@@ -29,19 +29,36 @@ inspectable, crash tolerant, and resumable.
 
 ## Installation
 
-Clone into your skills directory. Per project:
+Any one of these works. Skills load at startup, so restart Claude Code afterwards
+before the skill appears.
+
+### As a Claude Code plugin (no npm required)
 
 ```bash
-git clone https://github.com/shaadahmade/Swarm-agent-for-claude-code .claude/skills/agent-swarm
+claude plugin marketplace add shaadahmade/Swarm-agent-for-claude-code
+claude plugin install agent-swarm@agent-swarm
 ```
 
-Or for all projects:
+This is the native route. `claude plugin update agent-swarm` picks up new
+versions, and `claude plugin uninstall agent-swarm` removes it.
+
+### With npx
 
 ```bash
-git clone https://github.com/shaadahmade/Swarm-agent-for-claude-code ~/.claude/skills/agent-swarm
+npx agent-swarm-skill              # into ./.claude/skills (this project)
+npx agent-swarm-skill --global     # into ~/.claude/skills (all projects)
+npx agent-swarm-skill --force      # overwrite an existing install
 ```
 
-Skills are loaded at startup, so restart Claude Code before the skill appears.
+### By hand
+
+The repository root is the plugin, and the skill itself lives under `skills/`,
+so copy that subdirectory rather than cloning the repo over your skills folder:
+
+```bash
+git clone https://github.com/shaadahmade/Swarm-agent-for-claude-code
+cp -r Swarm-agent-for-claude-code/skills/agent-swarm ~/.claude/skills/agent-swarm
+```
 
 ## Requirements
 
@@ -64,14 +81,14 @@ To drive the scripts by hand:
 
 ```bash
 # create a run, optionally sizing it yourself
-RUN=$(bash scripts/init_swarm.sh myrun '{"max_depth":2,"max_agents":13}')
+RUN=$(bash skills/agent-swarm/scripts/init_swarm.sh myrun '{"max_depth":2,"max_agents":13}')
 
 # write the root task, then start the swarm
 echo "your goal here" > "$RUN/nodes/root/task.md"
-bash scripts/spawn.sh "$RUN" nodes/root
+bash skills/agent-swarm/scripts/spawn.sh "$RUN" nodes/root
 
 # inspect progress at any time
-bash scripts/tree.sh "$RUN"
+bash skills/agent-swarm/scripts/tree.sh "$RUN"
 ```
 
 ## Run layout
@@ -119,7 +136,7 @@ how many separable parts it has and whether those parts subdivide, and passes
 its own configuration to `init_swarm.sh` as a JSON object:
 
 ```bash
-bash scripts/init_swarm.sh research '{"max_depth":2,"max_agents":13,"rationale":"three areas, each splitting into sub-topics"}'
+bash skills/agent-swarm/scripts/init_swarm.sh research '{"max_depth":2,"max_agents":13,"rationale":"three areas, each splitting into sub-topics"}'
 ```
 
 The reasoning is stored in `rationale` and printed by `tree.sh`, so the sizing
@@ -147,7 +164,7 @@ is given and reports on stderr when it does:
 `max_parallel` is additionally capped at `max_agents`. Invalid JSON and unknown
 keys are rejected rather than ignored, so a typo like `max_agent` fails loudly
 instead of silently leaving the default in place. To allow larger swarms, raise
-the ceilings in `scripts/init_swarm.sh` deliberately.
+the ceilings in `skills/agent-swarm/scripts/init_swarm.sh` deliberately.
 
 ### A note on allowed_tools
 
@@ -213,13 +230,15 @@ identical to a healthy one.
 
 | Path | Purpose |
 |---|---|
-| `SKILL.md` | Skill definition and trigger description. |
-| `scripts/init_swarm.sh` | Creates a run directory, config, and budget counter. |
-| `scripts/spawn.sh` | Launches one agent. Enforces budget and parallelism. |
-| `scripts/tree.sh` | Prints the tree with statuses and the census audit. |
-| `references/node-protocol.md` | The rules handed to every agent. |
-| `references/child-task-template.md` | Template for writing a child's task. |
-| `references/architecture.md` | Design rationale and debugging notes. |
+| `skills/agent-swarm/SKILL.md` | Skill definition and trigger description. |
+| `skills/agent-swarm/scripts/init_swarm.sh` | Creates a run directory, config, and budget counter. |
+| `skills/agent-swarm/scripts/spawn.sh` | Launches one agent. Enforces budget and parallelism. |
+| `skills/agent-swarm/scripts/tree.sh` | Prints the tree with statuses and the census audit. |
+| `skills/agent-swarm/references/node-protocol.md` | The rules handed to every agent. |
+| `skills/agent-swarm/references/child-task-template.md` | Template for writing a child's task. |
+| `skills/agent-swarm/references/architecture.md` | Design rationale and debugging notes. |
+| `.claude-plugin/` | Plugin and marketplace manifests for `claude plugin install`. |
+| `bin/install.js` | The `npx agent-swarm-skill` installer. |
 
 ## When not to use it
 

@@ -1,0 +1,19 @@
+{
+  "name": "agent-swarm",
+  "description": "Recursive multi-agent decomposition for Claude Code.",
+  "owner": {
+    "name": "shaadahmade"
+  },
+  "plugins": [
+    {
+      "name": "agent-swarm",
+      "description": "Decompose a large goal into a recursive tree of agents. A master agent splits the work and spawns child agents as headless Claude Code processes, those children can split and spawn their own, and every result merges back up the tree into one answer.",
+      "author": {
+        "name": "shaadahmade"
+      },
+      "source": ".",
+      "category": "development",
+      "homepage": "https://github.com/shaadahmade/Swarm-agent-for-claude-code"
+    }
+  ]
+}

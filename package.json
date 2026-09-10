@@ -1,0 +1,31 @@
+{
+  "name": "agent-swarm-skill",
+  "version": "0.1.0",
+  "description": "Claude Code skill that decomposes a large goal into a recursive tree of agents, where each agent can spawn its own agents and results merge back up to a single answer.",
+  "bin": {
+    "agent-swarm-skill": "bin/install.js"
+  },
+  "files": [
+    "bin/",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "skill",
+    "agents",
+    "multi-agent",
+    "swarm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaadahmade/Swarm-agent-for-claude-code.git"
+  },
+  "homepage": "https://github.com/shaadahmade/Swarm-agent-for-claude-code",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.7.0"
+  }
+}
