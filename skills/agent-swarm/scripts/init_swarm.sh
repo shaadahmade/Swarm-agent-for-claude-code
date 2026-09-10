@@ -5,8 +5,9 @@
 # The master agent sizes the swarm itself by passing a JSON object as the second
 # argument, e.g.:
 #   init_swarm.sh research '{"max_agents":8,"max_depth":2,"rationale":"..."}'
-# Any key omitted falls back to the default below. Every value is clamped to a
-# hard ceiling so an autonomous agent cannot start a runaway swarm.
+# Any key omitted falls back to the default below. There are no ceilings: the
+# master agent owns every one of these decisions. A run is bounded only by
+# max_agents, which the master also chooses.
 set -euo pipefail
 
 NAME="${1:-run}"
@@ -21,21 +22,23 @@ import json, os, sys
 
 run_dir = sys.argv[1]
 
+# Fallbacks only. The master agent is expected to choose every one of these from
+# the shape of the goal; these values apply when it passes nothing at all.
+# max_parallel 0 means no parallelism gate: every spawn runs immediately.
 DEFAULTS = {
     "max_depth": 3,
     "max_children": 4,
     "max_agents": 15,
-    "max_parallel": 3,
+    "max_parallel": 0,
     "model": "",
     "leaf_model": "",
     "allowed_tools": "Bash Read Write Edit Glob Grep",
     "rationale": "",
 }
 
-# Hard ceilings. These bound autonomous sizing: the master may choose anything
-# up to these, never past them. Raise them only deliberately.
-CEILINGS = {"max_depth": 5, "max_children": 6, "max_agents": 40, "max_parallel": 8}
-FLOORS = {"max_depth": 0, "max_children": 2, "max_agents": 1, "max_parallel": 1}
+# Values that must be whole numbers. There are no ceilings: the master owns
+# these decisions, and a run is bounded by max_agents, which it also chooses.
+NUMERIC = ("max_depth", "max_children", "max_agents", "max_parallel")
 
 raw = os.environ.get("OVERRIDES", "").strip() or "{}"
 try:
@@ -49,29 +52,21 @@ unknown = set(chosen) - set(DEFAULTS)
 if unknown:
     sys.exit(f"init_swarm.sh: unknown config key(s): {', '.join(sorted(unknown))}")
 
-cfg, notes = dict(DEFAULTS), []
+cfg = dict(DEFAULTS)
 for k, v in chosen.items():
-    if k in CEILINGS:
+    if k in NUMERIC:
         try:
             v = int(v)
         except (TypeError, ValueError):
             sys.exit(f"init_swarm.sh: {k} must be an integer, got {v!r}")
-        lo, hi = FLOORS[k], CEILINGS[k]
-        if v > hi:
-            notes.append(f"{k} requested {v}, clamped to ceiling {hi}")
-            v = hi
-        elif v < lo:
-            notes.append(f"{k} requested {v}, raised to floor {lo}")
-            v = lo
+        if v < 0:
+            sys.exit(f"init_swarm.sh: {k} cannot be negative, got {v}")
     cfg[k] = v
 
-# A swarm can never spawn more agents than its own budget allows.
-if cfg["max_parallel"] > cfg["max_agents"]:
-    cfg["max_parallel"] = cfg["max_agents"]
+if cfg["max_agents"] < 1:
+    sys.exit("init_swarm.sh: max_agents must be at least 1")
 
 json.dump(cfg, open(os.path.join(run_dir, "config.json"), "w"), indent=2)
-for n in notes:
-    print(f"init_swarm.sh: {n}", file=sys.stderr)
 EOF
 
 echo 0 > "${RUN_DIR}/budget.count"

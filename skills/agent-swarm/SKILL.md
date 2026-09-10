@@ -44,7 +44,7 @@ Read `task.md`, then decide:
 Hard rules that keep the civilization from collapsing:
 1. **Depth limit** (`config.json → max_depth`, default 3). At max depth an agent MUST execute, never decompose.
 2. **Child limit** (`max_children`, default 4). Prefer fewer, bigger children over many tiny ones.
-3. **Global budget** (`max_agents`, default 15 total spawns). `scripts/spawn.sh` enforces it atomically and refuses to spawn past it — if refused, execute the task yourself.
+3. **Global budget** (`max_agents`). `scripts/spawn.sh` enforces it atomically and refuses to spawn past it — if refused, execute the task yourself. This is the only hard bound on a run.
 4. **Never decompose into 1 child.** That's just yourself with extra steps.
 5. A subtask given to a child must be **self-contained**: a child sees only its own `task.md`, not the conversation.
 
@@ -55,7 +55,7 @@ Hard rules that keep the civilization from collapsing:
    the user for numbers unless they raised the subject. Use the rubric below,
    then pass your choice as a JSON object:
    ```bash
-   bash <skill-dir>/scripts/init_swarm.sh "<short-run-name>" '{"max_depth":2,"max_children":3,"max_agents":10,"max_parallel":3,"leaf_model":"claude-haiku-4-5-20251001","rationale":"why you chose this"}'
+   bash <skill-dir>/scripts/init_swarm.sh "<short-run-name>" '{"max_depth":2,"max_children":3,"max_agents":10,"leaf_model":"claude-haiku-4-5-20251001","rationale":"why you chose this"}'
    ```
    This creates `swarm/<run-id>/`, writes `config.json`, and creates `nodes/root/`.
    Write the user's goal into `nodes/root/task.md`. State your sizing choice and
@@ -92,12 +92,15 @@ visual view there are two:
 Count the shape of the goal first: how many separable parts it has, and whether
 those parts themselves split. Then pick the smallest tree that covers it.
 
-| Goal shape | max_depth | max_children | max_agents | max_parallel |
-|---|---|---|---|---|
-| 2 or 3 parts, none of which subdivide | 1 | 3 | 4 | 3 |
-| A few areas, each with its own sub-parts | 2 | 3 | 10 | 3 |
-| Large build with several layers of structure | 3 | 4 | 20 | 4 |
-| Many similar items processed the same way (wide and shallow) | 1 | 6 | 13 | 4 |
+| Goal shape | max_depth | max_children | max_agents |
+|---|---|---|---|
+| 2 or 3 parts, none of which subdivide | 1 | 3 | 4 |
+| A few areas, each with its own sub-parts | 2 | 3 | 10 |
+| Large build with several layers of structure | 3 | 4 | 20 |
+| Many similar items processed the same way (wide and shallow) | 1 | 6 | 13 |
+
+These are starting points, not limits. Nothing is clamped: if the goal genuinely
+has 30 separable parts, ask for 30.
 
 **Budget the tree before you set `max_agents`.** A balanced tree of branching
 factor b and depth d holds `1 + b + b^2 + ... + b^d` agents. Branching 2 at depth
@@ -119,10 +122,23 @@ spawn, wait, and merge. When two sizings look reasonable, take the smaller one.
 If the goal turns out not to have 2 or more genuinely separable parts, do not
 run a swarm at all: just do the task directly and say so.
 
-**Hard ceilings.** `init_swarm.sh` clamps every value to a safety ceiling
-(depth 5, children 6, agents 40, parallel 8) and reports on stderr when it
-clamps. Treat a clamp message as a signal that your plan was too big, and
-reconsider the decomposition rather than working around the limit.
+**Parallelism: leave it alone.** `max_parallel` defaults to 0, meaning no gate:
+every agent starts the moment it is spawned. That is almost always what you
+want, because independent work should not queue behind a number. `spawn.sh`
+backs off and retries when the API actually pushes back, which handles rate
+limits without taxing every run.
+
+Set `max_parallel` to a positive number only for a concrete reason you can
+state: a known account rate limit, a machine that cannot take the process load,
+or work whose agents contend over something external. A cap has a real cost.
+Measured on one 9-agent run capped at 2, the six leaves queued in staggered
+batches and 69% of the total agent time was parents sitting blocked, waiting for
+slots rather than working.
+
+**No ceilings.** Nothing is clamped. `max_agents` is the only real bound on a
+run, and you choose it, so choose it honestly: it is what stops a
+mis-decomposition from spawning without limit. Non-integer and negative values
+are still rejected.
 
 ## What children do (encoded in their task.md automatically)
 
@@ -131,7 +147,7 @@ Each spawned child receives instructions to: read its `task.md`, make the EXECUT
 ## Practical notes
 
 - `spawn.sh` runs children with `--permission-mode acceptEdits` and passes `--model` from `config.json` (default: haiku for leaves is a good cost saver — set `"model": "claude-haiku-4-5"` if the user wants cheap workers; omit to inherit default).
-- Parallel spawns are capped by `max_parallel` in config (default 3) to avoid rate limits; `spawn.sh` handles queuing via a simple lock loop.
+- Parallel spawns are ungated by default. `spawn.sh` retries with backoff when the API reports a rate limit, so you rarely need a cap.
 - Long waits: poll `tree.sh` occasionally and narrate progress to the user instead of going silent.
 - If `claude` CLI is not on PATH, stop and tell the user this skill needs Claude Code's CLI available inside Bash.
 - Read `references/child-task-template.md` before writing any child task.md. For deeper protocol details or debugging a stuck swarm, read `references/architecture.md`.

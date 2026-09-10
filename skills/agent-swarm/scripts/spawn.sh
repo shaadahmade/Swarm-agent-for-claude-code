@@ -63,18 +63,25 @@ fi
 echo $((COUNT + 1)) > "${RUN_DIR}/budget.count"
 rmdir "${LOCK}"
 
-# ---- parallelism gate (slot files) ----
-SLOTS_DIR="${RUN_DIR}/.slots"
-mkdir -p "${SLOTS_DIR}"
+# ---- parallelism gate (slot files), only if the run asked for one ----
+# max_parallel 0 means no gate at all: independent work should not queue behind
+# a number somebody guessed. Rate limits are handled by backing off on the
+# actual failure further down, which is a response to reality rather than a
+# standing tax on every run.
 SLOT=""
-while [ -z "${SLOT}" ]; do
-  for i in $(seq 1 "${MAX_PARALLEL}"); do
-    if mkdir "${SLOTS_DIR}/${i}" 2>/dev/null; then SLOT="${SLOTS_DIR}/${i}"; break; fi
-  done
-  [ -z "${SLOT}" ] && sleep 1
-done
 SLOT_RELEASED=0
+if [ "${MAX_PARALLEL}" -gt 0 ]; then
+  SLOTS_DIR="${RUN_DIR}/.slots"
+  mkdir -p "${SLOTS_DIR}"
+  while [ -z "${SLOT}" ]; do
+    for i in $(seq 1 "${MAX_PARALLEL}"); do
+      if mkdir "${SLOTS_DIR}/${i}" 2>/dev/null; then SLOT="${SLOTS_DIR}/${i}"; break; fi
+    done
+    [ -z "${SLOT}" ] && sleep 1
+  done
+fi
 release_slot() {
+  [ -z "${SLOT}" ] && return 0
   [ "${SLOT_RELEASED}" -eq 1 ] && return 0
   rmdir "${SLOT}" 2>/dev/null || true
   SLOT_RELEASED=1
@@ -135,26 +142,43 @@ EXTRA_ARGS=()
 # shellcheck disable=SC2206
 [ -n "${ALLOWED_TOOLS}" ] && EXTRA_ARGS+=(--allowedTools ${ALLOWED_TOOLS})
 
-claude -p "$(cat "${PROMPT_FILE}")" \
-  --permission-mode acceptEdits \
-  "${EXTRA_ARGS[@]}" \
-  > "${NODE_DIR}/.agent.log" 2>&1 &
-AGENT_PID=$!
+# Attempt the agent, backing off if the API pushed back. A retry reuses this
+# same node, so it does not consume additional budget.
+ATTEMPT=1
+MAX_ATTEMPTS=3
+while : ; do
+  claude -p "$(cat "${PROMPT_FILE}")" \
+    --permission-mode acceptEdits \
+    "${EXTRA_ARGS[@]}" \
+    > "${NODE_DIR}/.agent.log" 2>&1 &
+  AGENT_PID=$!
 
-# Once this node has written task files for its own children it is no longer
-# working, it is blocked waiting for them. A blocked parent that keeps holding
-# a slot deadlocks the swarm: every slot ends up held by a parent waiting on
-# children who can never get a slot of their own. So release the slot as soon
-# as this node becomes a parent. The cap then limits agents doing actual work
-# rather than agents merely existing.
-while kill -0 "${AGENT_PID}" 2>/dev/null; do
-  if [ "${SLOT_RELEASED}" -eq 0 ] && compgen -G "${NODE_DIR}/children/*/task.md" >/dev/null 2>&1; then
-    release_slot
+  # Once this node has written task files for its own children it is no longer
+  # working, it is blocked waiting for them. A blocked parent that keeps holding
+  # a slot deadlocks the swarm, so release as soon as it becomes a parent. With
+  # no gate configured there is no slot to release and this is a no-op.
+  while kill -0 "${AGENT_PID}" 2>/dev/null; do
+    if [ -n "${SLOT}" ] && [ "${SLOT_RELEASED}" -eq 0 ] \
+       && compgen -G "${NODE_DIR}/children/*/task.md" >/dev/null 2>&1; then
+      release_slot
+    fi
+    sleep 1
+  done
+  wait "${AGENT_PID}"
+  RC=$?
+
+  [ -f "${NODE_DIR}/status.json" ] && break
+  [ "${ATTEMPT}" -ge "${MAX_ATTEMPTS}" ] && break
+  # Only retry what a retry can fix.
+  if ! grep -qiE "rate.?limit|429|overloaded|too many requests|temporarily unavailable" \
+       "${NODE_DIR}/.agent.log" 2>/dev/null; then
+    break
   fi
-  sleep 1
+  BACKOFF=$(( 5 * ATTEMPT * ATTEMPT ))
+  echo "spawn.sh: ${NODE_REL} hit a rate limit, retrying in ${BACKOFF}s (attempt ${ATTEMPT}/${MAX_ATTEMPTS})" >&2
+  sleep "${BACKOFF}"
+  ATTEMPT=$(( ATTEMPT + 1 ))
 done
-wait "${AGENT_PID}"
-RC=$?
 
 # ---- guarantee a status.json for the parent's backtrace ----
 if [ ! -f "${NODE_DIR}/status.json" ]; then

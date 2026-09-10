@@ -1,6 +1,6 @@
 {
   "name": "agent-swarm-skill",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Claude Code skill that decomposes a large goal into a recursive tree of agents, where each agent can spawn its own agents and results merge back up to a single answer.",
   "bin": {
     "agent-swarm-skill": "bin/install.js"

@@ -123,7 +123,7 @@ child of the second child of the root.
 | `max_depth` | 3 | How many levels deep the tree may go. Root is depth 0. |
 | `max_children` | 4 | Maximum children any single node may spawn. |
 | `max_agents` | 15 | Total agents allowed for the whole run. |
-| `max_parallel` | 3 | Maximum agents running at once, across the entire tree. |
+| `max_parallel` | 0 | Maximum agents running at once. 0 means no limit. |
 | `model` | "" | Model for spawned agents. Empty means the default. |
 | `leaf_model` | "" | Overrides `model` at max depth only. Empty means leaves inherit `model`. |
 | `allowed_tools` | `Bash Read Write Edit Glob Grep` | Tools each agent may use without a permission prompt. |
@@ -149,22 +149,33 @@ needs 7 and branching 3 at depth 2 needs 13. A budget set below the intended
 tree is worse than a small one, because spawns get refused partway through and
 parents have to absorb the leftover work.
 
-### Ceilings on autonomous sizing
+### On parallelism, and why there is no cap by default
 
-Because the agent chooses its own limits, `init_swarm.sh` clamps every value it
-is given and reports on stderr when it does:
+`max_parallel` is 0 out of the box, meaning agents run as soon as they are
+spawned. A fixed cap throttles work that has no reason to queue, and the cost is
+not small: on a 9-agent run capped at 2, the six leaves drained in staggered
+batches and 69% of all agent time was parents sitting blocked, holding context
+while they waited for slots rather than doing anything.
 
-| Key | Floor | Ceiling |
-|---|---|---|
-| `max_depth` | 0 | 5 |
-| `max_children` | 2 | 6 |
-| `max_agents` | 1 | 40 |
-| `max_parallel` | 1 | 8 |
+Rate limits are handled where they actually occur. When an agent fails and its
+log looks like a rate limit, `spawn.sh` waits and retries the same node, up to
+three attempts with growing backoff, without consuming extra budget. A genuine
+error is not retried, so real failures still surface immediately.
 
-`max_parallel` is additionally capped at `max_agents`. Invalid JSON and unknown
-keys are rejected rather than ignored, so a typo like `max_agent` fails loudly
-instead of silently leaving the default in place. To allow larger swarms, raise
-the ceilings in `skills/agent-swarm/scripts/init_swarm.sh` deliberately.
+Set `max_parallel` above 0 when you have a specific reason: a known account
+limit, a machine that cannot take the process load, or agents contending over
+something external.
+
+### Limits are yours to set
+
+Nothing is clamped. If a goal genuinely has 30 separable parts, ask for 30
+agents. `max_agents` is the only real bound on a run, which makes it worth
+choosing deliberately: it is what stops a bad decomposition from spawning
+without limit.
+
+Invalid JSON, unknown keys, non-integers and negative numbers are still
+rejected, so a typo like `max_agent` fails loudly instead of silently leaving a
+default in place.
 
 ### A note on allowed_tools
 
@@ -181,12 +192,15 @@ is broad by nature and this is not a sandbox.
   `spawn.sh` refuses to launch and tells the parent to do the work itself. The
   counter is guarded by an atomic `mkdir` lock, so concurrent spawns cannot
   overshoot the limit.
-- **Parallelism gate.** A slot directory caps how many agents run at once across
-  the whole tree, which keeps the run within API rate limits. The cap counts
-  agents doing work, not agents merely existing: once a node has written task
-  files for its own children it is blocked waiting on them, so it gives up its
-  slot. Without that release the swarm deadlocks, because every slot ends up
-  held by a parent waiting on children who can never get a slot of their own.
+- **Parallelism gate, when asked for.** Off by default. If `max_parallel` is set,
+  a slot directory caps how many agents run at once across the whole tree, and
+  the cap counts agents doing work rather than agents merely existing: once a
+  node has written task files for its own children it is blocked waiting on
+  them, so it gives up its slot. Without that release the swarm deadlocks, every
+  slot held by a parent waiting on children who can never get one.
+- **Rate-limit backoff.** An agent whose log reports a rate limit is retried on
+  the same node with growing backoff, so a busy API slows a run down instead of
+  failing it. Retries do not consume additional budget.
 - **Parent-side guarantees.** If an agent crashes or exits without writing its
   files, `spawn.sh` backfills a failed `status.json` so the parent is never left
   waiting on a node that will never report.
