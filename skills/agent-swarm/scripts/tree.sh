@@ -57,7 +57,7 @@ walk(root, "root (master)", "", is_root=True)
 # ---- census audit ----
 print()
 total = len(real) + len(phantom)
-print(f"Census: {total} node(s) on disk | {len(real)} with a live agent | {len(phantom)} phantom")
+print(f"Census: {total} spawned node(s) | {len(real)} with a live agent | {len(phantom)} phantom")
 if phantom:
     print(f"WARNING: {len(phantom)} node(s) have results but no agent ever ran: {', '.join(phantom)}")
     print("         Their parent wrote those files by hand. Treat the results as unverified.")

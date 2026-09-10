@@ -82,7 +82,10 @@ release_slot() {
 trap release_slot EXIT
 
 # ---- compute this node's depth from its path (root=0) ----
-DEPTH=$(echo "${NODE_REL}" | grep -o "children/" | wc -l | tr -d ' ')
+# Count occurrences of "children/" by measuring how much shorter the path gets
+# with them stripped out. "children/" is 9 characters.
+_stripped="${NODE_REL//children\//}"
+DEPTH=$(( (${#NODE_REL} - ${#_stripped}) / 9 ))
 
 # ---- leaf nodes may run a cheaper model ----
 # Nodes at max depth must EXECUTE rather than decompose, so they do no planning
@@ -107,10 +110,10 @@ PROMPT_FILE="${NODE_DIR}/.prompt.txt"
   echo "Never write them to a path relative to your current directory: if you cd"
   echo "anywhere during your work, a relative path silently lands in the wrong"
   echo "tree, your parent sees no results, and you are recorded as dead."
-  echo "Spawn script for children: ${SCRIPT_DIR}/spawn.sh"
   echo ""
-  echo "IMPORTANT -- how to run the spawn script: it is a bash script and the path"
-  echo "above is a POSIX/MSYS path. Invoke it with your Bash tool, never PowerShell."
+  echo "Spawn script for children: ${SCRIPT_DIR}/spawn.sh"
+  echo "IMPORTANT -- how to run it: it is a bash script and the path above is a"
+  echo "POSIX/MSYS path. Invoke it with your Bash tool, never PowerShell."
   echo "If your Bash tool is unavailable or the command is refused, you MUST report"
   echo "that failure per the protocol below -- never fabricate a child's results."
   echo ""
@@ -126,7 +129,7 @@ PROMPT_FILE="${NODE_DIR}/.prompt.txt"
   cat "${SCRIPT_DIR}/../references/node-protocol.md"
 } > "${PROMPT_FILE}"
 
-# ---- run headless claude from the repo root so paths stay consistent ----
+# ---- launch the agent ----
 EXTRA_ARGS=()
 [ -n "${MODEL}" ] && EXTRA_ARGS+=(--model "${MODEL}")
 # shellcheck disable=SC2206
