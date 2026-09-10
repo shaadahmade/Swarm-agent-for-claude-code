@@ -77,10 +77,15 @@ Hard rules that keep the civilization from collapsing:
    - A child produced files (code, docs): children write real files into their own node dir or a path you specify in their task.md — collect/merge them.
 
 5. **Report.** Show the user the final result, plus a one-line civilization census: how many agents ran, tree shape, any casualties (failed nodes). `bash <skill-dir>/scripts/tree.sh <run-dir>` prints the tree with statuses. For a
-visual report, `bash <skill-dir>/scripts/graph.sh <run-dir>` writes a
-self-contained `graph.html` with the tree, a timeline of when each agent ran, and
-the census audit. Offer it to the user after a run of more than a couple of
-agents, and give them the file path.
+visual view there are two:
+
+- **Live:** `bash <skill-dir>/scripts/watch.sh <run-dir> &` serves a
+  self-updating page on localhost and prints its URL. Start it BEFORE you spawn,
+  and give the user the URL immediately, so they can watch the swarm work
+  instead of waiting at a silent terminal. Offer this for any run of more than
+  about four agents. Stop it when the run is done.
+- **Snapshot:** `bash <skill-dir>/scripts/graph.sh <run-dir>` writes a
+  self-contained `graph.html` to keep or read afterwards. Give the user the path.
 
 ## Sizing the swarm (you decide this, every run)
 

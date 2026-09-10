@@ -219,18 +219,38 @@ identical to a healthy one.
 
 ## Visualising a run
 
-`tree.sh` shows structure. `graph.sh` shows structure and timing together, as a
-self-contained HTML page you can open in a browser:
+`tree.sh` prints the structure as text. For the visual view there are two forms,
+both drawing the node-link tree, a timeline of when each agent ran, and the same
+census audit `tree.sh` performs.
+
+### Watch it live
+
+```bash
+bash skills/agent-swarm/scripts/watch.sh <run-dir> [port]   # default port 8787
+```
+
+Prints a `http://127.0.0.1:...` URL and holds the terminal until Ctrl+C. Open the
+URL and the page updates itself roughly once a second: agents appear as they
+spawn, running nodes pulse, elapsed times count up, and bars extend as work
+proceeds. Start it before or during a run; a run that has not begun yet just
+shows an empty tree until it does.
+
+It binds to 127.0.0.1 only, so nothing is exposed off the machine, and it serves
+one page plus one fragment endpoint, nothing else from disk.
+
+Watching a swarm is the fastest way to understand its behaviour: you can see
+parents go quiet while they write their children's sub-contracts, then children
+queue on the parallelism gate waiting for a slot.
+
+### Snapshot it
 
 ```bash
 bash skills/agent-swarm/scripts/graph.sh <run-dir>          # writes <run-dir>/graph.html
 bash skills/agent-swarm/scripts/graph.sh <run-dir> out.html # or somewhere else
 ```
 
-The page carries the node-link tree with each node's status, a timeline of when
-every agent actually ran, and the same census audit `tree.sh` performs. It reads
-only the run directory and needs no network, so it works on a finished run or a
-run still in progress.
+A single self-contained HTML file with no network use at all, for keeping,
+attaching or reading after the fact. Works on a finished run or a live one.
 
 The timeline is the part worth reading. Agent lifetimes come from file
 timestamps, so the chart shows which agents overlapped, which ones queued on the
@@ -258,8 +278,11 @@ merely existing. The page says so where it reports the peak.
 | `skills/agent-swarm/scripts/init_swarm.sh` | Creates a run directory, config, and budget counter. |
 | `skills/agent-swarm/scripts/spawn.sh` | Launches one agent. Enforces budget and parallelism. |
 | `skills/agent-swarm/scripts/tree.sh` | Prints the tree with statuses and the census audit. |
-| `skills/agent-swarm/scripts/graph.sh` | Renders a run as a self-contained HTML tree and timeline. |
-| `skills/agent-swarm/scripts/graph.py` | The page generator behind `graph.sh`. |
+| `skills/agent-swarm/scripts/watch.sh` | Serves a live, self-updating view of a run on localhost. |
+| `skills/agent-swarm/scripts/graph.sh` | Writes a static HTML snapshot of a run. |
+| `skills/agent-swarm/scripts/swarm_render.py` | Scans a run and renders it; shared by both. |
+| `skills/agent-swarm/scripts/serve.py` | The local server behind `watch.sh`. |
+| `skills/agent-swarm/scripts/graph.py` | The snapshot writer behind `graph.sh`. |
 | `skills/agent-swarm/references/node-protocol.md` | The rules handed to every agent. |
 | `skills/agent-swarm/references/child-task-template.md` | Template for writing a child's task. |
 | `skills/agent-swarm/references/architecture.md` | Design rationale and debugging notes. |
